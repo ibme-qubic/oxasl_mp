@@ -39,26 +39,31 @@ def _decode_mp_pld(wsp):
     if wsp.logfile is not None and wsp.savedir is not None:
         wsp.set_item("logfile", wsp.logfile, save_fn=str)
 
-def _decode_mp(wsp):
+def decode_mp(wsp):
+    """
+    Run multiphase decoding on a full multiphase data set
+    """
     if wsp.mp is None:
         wsp.sub("mp")
 
     wsp.log.write("\nPerforming multiphase decoding\n")
 
-    # Make sure phase cycles are together in the data and
+    # Make sure phase cycles are together in the data
     wsp.mp.asldata = wsp.asldata.reorder(out_order="lrt")
 
-    # Prepare a data set to put each decoded PLDinto
+    # Prepare a data set to put each decoded PLD into
     diffdata = np.zeros(list(wsp.asldata.data.shape)[:3] + [wsp.asldata.ntis])
 
-    # Do multiphase modelling on each TI/PLD
+    # Do multiphase modelling on each TI/PLD saving the magnitude output
+    # in the diffdata
     for idx in range(wsp.asldata.ntis):
-        wsp.log.write("\n - Fitting PLD %i\n" % (idx+1))
+        wsp.log.write("\n - Fitting PLD %i: " % (idx+1))
         wsp_pld = wsp.mp.sub("pld%i" % (idx+1))
         wsp_pld.asldata = wsp.mp.asldata.single_ti(idx)
         _decode_mp_pld(wsp_pld)
         diffdata[..., idx] = wsp_pld.mean_mag.data
 
+    # Set the full multiphase-decoded differenced data output on the workspace
     wsp.mp.asldata_decoded = wsp.mp.asldata.derived(diffdata, iaf='diff', order='rt')
     wsp.log.write("\nDONE multiphase decoding\n")
 
@@ -81,13 +86,15 @@ def model_mp(wsp):
     Workspace attributes updated
     ----------------------------
 
-      - ``mp   ``      - Sub-workspace containing multiphase decoding output
+      - ``mp``         - Sub-workspace containing multiphase decoding output
+      - ``basil``      - Sub-workspace containing modelling of decoded output
       - ``output``     - Sub workspace containing native/structural/standard space
                          parameter maps
     """
     from oxasl import oxford_asl
 
-    _decode_mp(wsp)
+    # Do multiphase decoding
+    decode_mp(wsp)
 
     # Do conventional ASL modelling
     wsp.sub("basil")
@@ -110,7 +117,6 @@ class MultiphaseOptions(OptionCategory):
     """
     OptionCategory which contains options for preprocessing multiphase ASL data
     """
-
     def __init__(self, **kwargs):
         OptionCategory.__init__(self, "oxasl_ve", **kwargs)
 
