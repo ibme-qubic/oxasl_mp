@@ -1,0 +1,8 @@
+.vscode
+*.mat
+*.pyc
+build*
+oxasl_mp/_version.py
+dist
+oxasl_mp.egg-info/
+.pytest_cache
