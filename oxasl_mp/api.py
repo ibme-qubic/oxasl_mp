@@ -14,31 +14,6 @@ from oxasl.wrappers import fabber
 
 from ._version import __version__
 
-def _decode_mp_pld(wsp):
-    """
-    Run multiphase decoding on a single PLD
-    """
-    options = {
-        "method" : "vb",
-        "noise" : "white",
-        "model" : "asl_multiphase",
-        "data" : wsp.asldata,
-        "nph" : wsp.asldata.nphases,
-        "save-mean" : True,
-        "save-model-fit" : True,
-    }
-
-    # Run Fabber using multiphase model
-    result = fabber(options, output=LOAD, progress_log=wsp.log, log=wsp.fsllog)
-    wsp.log.write("\n")
-
-    for key, value in result.items():
-        setattr(wsp, key, value)
-
-    # Write log as text file
-    if wsp.logfile is not None and wsp.savedir is not None:
-        wsp.set_item("logfile", wsp.logfile, save_fn=str)
-
 def decode_mp(wsp):
     """
     Run multiphase decoding on a full multiphase data set
@@ -46,25 +21,63 @@ def decode_mp(wsp):
     if wsp.mp is None:
         wsp.sub("mp")
 
-    wsp.log.write("\nPerforming multiphase decoding\n")
+    wsp.log.write("\nPerforming multiphase decoding:     ")
+    if wsp.asldata.is_var_repeats():
+        raise ValueError("Multiphase ASL data with variable repeats not currently supported")
+    nrepeats = wsp.asldata.rpts[0]
 
-    # Make sure phase cycles are together in the data
+    # Make sure phase cycles are together in the data and data for each
+    # PLD is in a block
     wsp.mp.asldata = wsp.asldata.reorder(out_order="lrt")
 
     # Prepare a data set to put each decoded PLD into
     diffdata = np.zeros(list(wsp.asldata.data.shape)[:3] + [wsp.asldata.ntis])
 
-    # Do multiphase modelling on each TI/PLD saving the magnitude output
-    # in the diffdata
-    for idx in range(wsp.asldata.ntis):
-        wsp.log.write("\n - Fitting PLD %i: " % (idx+1))
-        wsp_pld = wsp.mp.sub("pld%i" % (idx+1))
-        wsp_pld.asldata = wsp.mp.asldata.single_ti(idx)
-        _decode_mp_pld(wsp_pld)
-        diffdata[..., idx] = wsp_pld.mean_mag.data
+    options = {
+        "method" : "vb",
+        "noise" : "white",
+        "model" : "asl_multiphase",
+        "data" : wsp.asldata,
+        "nph" : wsp.asldata.nphases,
+        "ntis" : wsp.asldata.ntis,
+        "repeats" : nrepeats,
+        "save-mean" : True,
+        "save-model-fit" : True,
+        "max-iterations": 30,
+    }
+
+    # Spatial mode
+    if wsp.mp_spatial:
+        options.update({
+            "method" : "spatialvb",
+            "param-spatial-priors" : "MN+",
+            #"convergence" : "maxits",
+            #"max-iterations": 30,
+        })
+
+    # Additional user-specified multiphase fitting options override the above
+    options.update(wsp.ifnone("mp_options", {}))
+
+    # Run Fabber using multiphase model
+    result = fabber(options, output=LOAD, progress_log=wsp.log, log=wsp.fsllog)
+    wsp.log.write("\n")
+
+    # Write out full multiphase fitting output
+    for key, value in result.items():
+        setattr(wsp.mp, key, value)
+
+    # Write Fabber log as text file
+    if result["logfile"] is not None and wsp.mp.savedir is not None:
+        wsp.mp.set_item("logfile", result["logfile"], save_fn=str)
+
+    if wsp.asldata.ntis == 1:
+        diffdata[..., 0] = result["mean_mag"].data
+    else:
+        for idx in range(wsp.asldata.ntis):
+            diffdata[..., idx] = result["mean_mag%i" % (idx+1)].data
 
     # Set the full multiphase-decoded differenced data output on the workspace
-    wsp.mp.asldata_decoded = wsp.mp.asldata.derived(diffdata, iaf='diff', order='rt')
+    wsp.mp.asldata_decoded = wsp.mp.asldata.derived(diffdata, iaf='diff', order='rt', rpts=1)
     wsp.log.write("\nDONE multiphase decoding\n")
 
 def model_mp(wsp):
@@ -118,10 +131,12 @@ class MultiphaseOptions(OptionCategory):
     OptionCategory which contains options for preprocessing multiphase ASL data
     """
     def __init__(self, **kwargs):
-        OptionCategory.__init__(self, "oxasl_ve", **kwargs)
+        OptionCategory.__init__(self, "oxasl_mp", **kwargs)
 
     def groups(self, parser):
-        ret = []
-        g = IgnorableOptionGroup(parser, "Multiphase Options")
-        ret.append(g)
-        return ret
+        groups = []
+        group = IgnorableOptionGroup(parser, "Multiphase Options", ignore=self.ignore)
+        group.add_option("--mp-spatial", help="Enable spatial smoothing on multiphase fitting step", action="store_true", default=False)
+        group.add_option("--mp-options", help="File containing additional options for multiphase fitting step", type="optfile")
+        groups.append(group)
+        return groups
