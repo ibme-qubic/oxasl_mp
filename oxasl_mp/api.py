@@ -114,8 +114,17 @@ def decode_mp(wsp):
     diffdata = np.zeros(list(wsp.asldata.data.shape)[:3] + [wsp.asldata.ntis])
 
     # Get the Fabber options
-    options = _mp_fabber_options(wsp)
+    options = _mp_fabber_options(wsp.mp)
 
+    # Initialize run
+    if wsp.mp_init_step:
+        wsp.mp.sub("init")
+        wsp.mp.init.asldata = wsp.mp.asldata.mean_across_repeats(diff=False)
+        options_init = _mp_fabber_options(wsp.mp.init)
+        options_init["save-mvn"] = True
+        result = _run_fabber(wsp.mp.init, options_init, "Initializing multiphase decoding on averaged data")
+        options["continue-from-mvn"] = wsp.mp.init.finalMVN
+        
     if wsp.mp_biascorr:
         nsv = wsp.ifnone("mp_biascorr_sv", 8)
         comp = wsp.ifnone("mp_biascorr_comp", 0.1)
@@ -236,6 +245,7 @@ class MultiphaseOptions(OptionCategory):
         group.add_option("--mp-spatial", help="Enable spatial smoothing on multiphase fitting step", action="store_true", default=False)
         group.add_option("--mp-spatial-phase", help="Perform spatial regularization on the phase rather than the magnitude", action="store_true", default=False)
         group.add_option("--mp-options", help="File containing additional options for multiphase fitting step", type="optfile")
+        group.add_option("--mp-init-step", help="Initialize multiphase fitting by initially fitting to the mean over repeats", action="store_true", default=False)
         group.add_option("--mp-biascorr", help="Use supervoxel-based bias correction", action="store_true", default=False)
         group.add_option("--mp-biascorr-sv", help="Number of supervoxels to use in bias correction", type="int", default=8)
         group.add_option("--mp-biascorr-comp", help="Supervoxels compactness to use in bias correction", type="float", default=0.1)
