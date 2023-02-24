@@ -19,7 +19,7 @@ def _run_fabber(wsp, options, desc):
     """
     Run Fabber and write the output to a workspace
     """
-    wsp.log.write("  - %s\n" % desc)
+    wsp.log.write(" - %s\n" % desc)
     result = fabber(options, output=LOAD, progress_log=wsp.log, log=wsp.fsllog)
     wsp.log.write(" - DONE\n")
 
@@ -127,10 +127,10 @@ def run(wsp, output_wsp=None):
         nsv = wsp.ifnone("mp_biascorr_sv", 8)
         comp = wsp.ifnone("mp_biascorr_comp", 0.1)
         sigma = wsp.ifnone("mp_biascorr_sigma", 0.5)
-        wsp.log.write("  - Using supervoxel-based bias correction\n")
-        wsp.log.write("  - Number of supervoxels: %i" % nsv)
-        wsp.log.write("  - Compactness: %f" % comp)
-        wsp.log.write("  - Pre-smoothing width: %i" % sigma)
+        wsp.log.write(" - Using supervoxel-based bias correction\n")
+        wsp.log.write(" - Number of supervoxels: %i" % nsv)
+        wsp.log.write(" - Compactness: %f" % comp)
+        wsp.log.write(" - Pre-smoothing width: %i" % sigma)
 
         # Initial biased Fabber run
         wsp.mp.sub("step1")
@@ -146,7 +146,7 @@ def run(wsp, output_wsp=None):
 
         if wsp.ifnone("mp_biascorr_simple", False):
             # Simple method - just use the mean phase in each supervoxel
-            wsp.log.write("  - Using simplified form of bias correction\n")
+            wsp.log.write(" - Using simplified form of bias correction\n")
             phase = wsp.mp.step1.mean_phase
             final_step = 2
         else:
