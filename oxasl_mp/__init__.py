@@ -9,7 +9,7 @@ The relevant processing function can also be called independently
 on a ``Workspace`` object, however this will not include the
 standard oxasl preprocessing or registration.
 """
-from .api import model_mp, MultiphaseOptions
+from .api import run, Options
 from ._version import __version__
 
-__all__ = ["__version__", "model_mp", "MultiphaseOptions"]
+__all__ = ["__version__", "run", "Options"]

@@ -10,9 +10,7 @@ from maskslic import perfslic
 from fsl.wrappers import LOAD
 from fsl.data.image import Image
 
-from oxasl import basil
-from oxasl.options import OptionCategory, IgnorableOptionGroup
-from oxasl.reporting import Report
+from oxasl.options import OptionCategory, OptionGroup
 from oxasl.wrappers import fabber
 
 from ._version import __version__
@@ -21,7 +19,7 @@ def _run_fabber(wsp, options, desc):
     """
     Run Fabber and write the output to a workspace
     """
-    wsp.log.write("  - %s     " % desc)
+    wsp.log.write("  - %s\n" % desc)
     result = fabber(options, output=LOAD, progress_log=wsp.log, log=wsp.fsllog)
     wsp.log.write(" - DONE\n")
 
@@ -96,7 +94,7 @@ def _mp_fabber_options(wsp):
 
     return options
 
-def decode_mp(wsp):
+def run(wsp, output_wsp=None):
     """
     Run multiphase decoding on a full multiphase data set
     """
@@ -173,7 +171,7 @@ def decode_mp(wsp):
         result = _run_fabber(getattr(wsp.mp, "step%i" % final_step), options, "Step %i: Running final fit with fixed phase" % final_step)
     else:
         # No bias correction - just basic fabber run
-        result = _run_fabber(wsp.mp, options, "Performing multiphase decoding")
+        result = _run_fabber(wsp.mp, options, "Basic multiphase decoding")
 
     # Combine final output as diffdata
     if wsp.asldata.ntis == 1:
@@ -184,55 +182,11 @@ def decode_mp(wsp):
 
     # Set the full multiphase-decoded differenced data output on the workspace
     wsp.mp.asldata_decoded = wsp.mp.asldata.derived(diffdata, iaf='diff', order='rt', rpts=1)
+    if output_wsp is not None:
+        output_wsp.asldata = wsp.mp.asldata_decoded
     wsp.log.write("\nDONE multiphase decoding\n")
 
-def model_mp(wsp):
-    """
-    Do modelling on multiphase ASL data
-
-    :param wsp: Workspace object
-
-    Required workspace attributes
-    -----------------------------
-
-      - ``asldata`` - ASLImage containing multiphase data
-
-    Optional workspace attributes
-    -----------------------------
-
-    See ``MultiphaseOptions`` for other options
-
-    Workspace attributes updated
-    ----------------------------
-
-      - ``mp``         - Sub-workspace containing multiphase decoding output
-      - ``basil``      - Sub-workspace containing modelling of decoded output
-      - ``output``     - Sub workspace containing native/structural/standard space
-                         parameter maps
-    """
-    from oxasl import oxford_asl
-
-    # Do multiphase decoding
-    decode_mp(wsp)
-
-    # Do conventional ASL modelling
-    wsp.sub("basil")
-    wsp.basil.asldata = wsp.mp.asldata_decoded
-    basil.basil(wsp.basil, output_wsp=wsp.basil)
-
-    # Write output
-    wsp.sub("output")
-    oxford_asl.output_native(wsp.output, wsp.basil)
-
-    # Re-do registration using PWI map.
-    oxford_asl.redo_reg(wsp, wsp.output.native.perfusion)
-
-    # Write output in transformed spaces
-    oxford_asl.output_trans(wsp.output)
-
-    wsp.log.write("\nDONE processing\n")
-
-class MultiphaseOptions(OptionCategory):
+class Options(OptionCategory):
     """
     OptionCategory which contains options for preprocessing multiphase ASL data
     """
@@ -241,7 +195,7 @@ class MultiphaseOptions(OptionCategory):
 
     def groups(self, parser):
         groups = []
-        group = IgnorableOptionGroup(parser, "Multiphase Options", ignore=self.ignore)
+        group = OptionGroup(parser, "Multiphase Options")
         group.add_option("--mp-spatial", help="Enable spatial smoothing on multiphase fitting step", action="store_true", default=False)
         group.add_option("--mp-spatial-phase", help="Perform spatial regularization on the phase rather than the magnitude", action="store_true", default=False)
         group.add_option("--mp-options", help="File containing additional options for multiphase fitting step", type="optfile")
