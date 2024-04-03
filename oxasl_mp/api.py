@@ -1,7 +1,7 @@
 """
 OXASL plugin for processing multiphase ASL data
 
-Copyright (c) 2019 Univerisity of Oxford
+Copyright (c) 2019 University of Nottingham
 """
 import numpy as np
 
